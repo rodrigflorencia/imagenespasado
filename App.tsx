@@ -1,7 +1,3 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
-*/
 import React, { useState, ChangeEvent, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { generateDecadeImage } from './services/geminiService';
@@ -9,16 +5,12 @@ import PolaroidCard from './components/PolaroidCard';
 import { createAlbumPage } from './lib/albumUtils';
 import Footer from './components/Footer';
 
-const DECADES = ['1950s', '1960s', '1970s', '1980s', '1990s', '2000s'];
+const AVAILABLE_DECADES = ['1130s', '1430s', '1720s', '1810s', '1850s', '1920s', '1960s', '1980s', '1990s', '2010s'];
 
-// Pre-defined positions for a scattered look on desktop
 const POSITIONS = [
     { top: '5%', left: '10%', rotate: -8 },
-    { top: '15%', left: '60%', rotate: 5 },
-    { top: '45%', left: '5%', rotate: 3 },
-    { top: '2%', left: '35%', rotate: 10 },
-    { top: '40%', left: '70%', rotate: -12 },
-    { top: '50%', left: '38%', rotate: -3 },
+    { top: '15%', left: '60%', rotate: 8 },
+    { top: '15%', left: '30%', rotate: 3 },
 ];
 
 const GHOST_POLAROIDS_CONFIG = [
@@ -57,10 +49,11 @@ const useMediaQuery = (query: string) => {
 
 function App() {
     const [uploadedImage, setUploadedImage] = useState<string | null>(null);
+    const [selectedDecades, setSelectedDecades] = useState<string[]>([]);
     const [generatedImages, setGeneratedImages] = useState<Record<string, GeneratedImage>>({});
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const [isDownloading, setIsDownloading] = useState<boolean>(false);
-    const [appState, setAppState] = useState<'idle' | 'image-uploaded' | 'generating' | 'results-shown'>('idle');
+    const [appState, setAppState] = useState<'idle' | 'image-uploaded' | 'decades-selection' | 'generating' | 'results-shown'>('idle');
     const dragAreaRef = useRef<HTMLDivElement>(null);
     const isMobile = useMediaQuery('(max-width: 768px)');
 
@@ -71,10 +64,29 @@ function App() {
             const reader = new FileReader();
             reader.onloadend = () => {
                 setUploadedImage(reader.result as string);
-                setAppState('image-uploaded');
-                setGeneratedImages({}); // Clear previous results
+                setAppState('decades-selection');
+                setGeneratedImages({}); 
+                setSelectedDecades([]);
             };
             reader.readAsDataURL(file);
+        }
+
+    };
+
+    const handleDecadeToggle = (decade: string) => {
+        setSelectedDecades(prev => {
+            if (prev.includes(decade)) {
+                return prev.filter(d => d !== decade);
+            } else if (prev.length < 3) {
+                return [...prev, decade];
+            }
+            return prev;
+        });
+    };
+
+    const handleConfirmDecades = () => {
+        if (selectedDecades.length > 0) {
+            setAppState('image-uploaded');
         }
     };
 
@@ -85,13 +97,13 @@ function App() {
         setAppState('generating');
         
         const initialImages: Record<string, GeneratedImage> = {};
-        DECADES.forEach(decade => {
+        selectedDecades.forEach(decade => {
             initialImages[decade] = { status: 'pending' };
         });
         setGeneratedImages(initialImages);
 
         const concurrencyLimit = 2; // Process two decades at a time
-        const decadesQueue = [...DECADES];
+        const decadesQueue = [...selectedDecades];
 
         const processDecade = async (decade: string) => {
             try {
@@ -188,7 +200,7 @@ function App() {
                     return acc;
                 }, {} as Record<string, string>);
 
-            if (Object.keys(imageData).length < DECADES.length) {
+            if (Object.keys(imageData).length < selectedDecades.length) {
                 alert("Please wait for all images to finish generating before downloading the album.");
                 return;
             }
@@ -259,6 +271,49 @@ function App() {
                     </div>
                 )}
 
+                {appState === 'decades-selection' && uploadedImage && (
+                    <div className="flex flex-col items-center gap-6">
+                         <div className="flex items-start gap-8">
+                             <label htmlFor="file-upload-decades" className="cursor-pointer group transform hover:scale-105 transition-transform duration-300">
+                                 <PolaroidCard 
+                                    imageUrl={uploadedImage} 
+                                    caption="Tu foto" 
+                                    status="done"
+                                 />
+                             </label>
+                             <input id="file-upload-decades" type="file" className="hidden" accept="image/png, image/jpeg, image/webp" onChange={handleImageUpload} />
+                             <div className="flex flex-col justify-start">
+                                 <p className="text-slate-600 mb-4 font-sans font-medium">Elige hasta 3 décadas</p>
+                                 <div className="grid grid-cols-2 gap-3 mb-6">
+                                     {AVAILABLE_DECADES.map((decade) => (
+                                         <button
+                                             key={decade}
+                                             onClick={() => handleDecadeToggle(decade)}
+                                             className={`py-2 px-3 rounded-lg font-sans font-medium text-sm transition-all duration-200 ${
+                                                 selectedDecades.includes(decade)
+                                                     ? 'bg-slate-700 text-white shadow-md'
+                                                     : 'bg-slate-100 text-slate-700 border-2 border-slate-200 hover:bg-slate-200'
+                                             }`}
+                                         >
+                                             {decade}
+                                         </button>
+                                     ))}
+                                 </div>
+                                 <button 
+                                    onClick={handleGenerateClick} 
+                                    disabled={selectedDecades.length === 0}
+                                    className={`${primaryButtonClasses} disabled:opacity-50 disabled:cursor-not-allowed mb-3`}
+                                >
+                                    Viajar
+                                </button>
+                                 <button onClick={handleReset} className={secondaryButtonClasses}>
+                                    Cambiar foto
+                                </button>
+                             </div>
+                         </div>
+                    </div>
+                )}
+
                 {appState === 'image-uploaded' && uploadedImage && (
                     <div className="flex flex-col items-center gap-6">
                          <PolaroidCard 
@@ -268,7 +323,7 @@ function App() {
                          />
                          <div className="flex items-center gap-4 mt-4">
                             <button onClick={handleReset} className={secondaryButtonClasses}>
-                                Otra foto
+                                Cambiar foto
                             </button>
                             <button onClick={handleGenerateClick} className={primaryButtonClasses}>
                                 Viajar
@@ -281,7 +336,7 @@ function App() {
                      <>
                         {isMobile ? (
                             <div className="w-full max-w-sm flex-1 overflow-y-auto mt-4 space-y-8 p-4">
-                                {DECADES.map((decade) => (
+                                {selectedDecades.map((decade) => (
                                     <div key={decade} className="flex justify-center">
                                          <PolaroidCard
                                             caption={decade}
@@ -297,7 +352,7 @@ function App() {
                             </div>
                         ) : (
                             <div ref={dragAreaRef} className="relative w-full max-w-5xl h-[600px] mt-4">
-                                {DECADES.map((decade, index) => {
+                                {selectedDecades.map((decade, index) => {
                                     const { top, left, rotate } = POSITIONS[index];
                                     return (
                                         <motion.div
