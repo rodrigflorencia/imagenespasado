@@ -55,16 +55,15 @@ const PolaroidCard: React.FC<PolaroidCardProps> = ({ imageUrl, caption, status, 
     const lastVelocity = useRef({ x: 0, y: 0 });
 
     // Reset states when the image URL changes or status goes to pending.
-    useEffect(() => {
-        if (status === 'pending') {
+    const [prevResetKey, setPrevResetKey] = useState(`${status}:${imageUrl ?? ''}`);
+    const resetKey = `${status}:${imageUrl ?? ''}`;
+    if (resetKey !== prevResetKey) {
+        setPrevResetKey(resetKey);
+        if (status === 'pending' || (status === 'done' && imageUrl)) {
             setIsDeveloped(false);
             setIsImageLoaded(false);
         }
-        if (status === 'done' && imageUrl) {
-            setIsDeveloped(false);
-            setIsImageLoaded(false);
-        }
-    }, [imageUrl, status]);
+    }
 
     // When the image is loaded, start the developing animation.
     useEffect(() => {
